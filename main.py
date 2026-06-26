@@ -21,6 +21,7 @@ def main():
     def signal_handler(sig, frame):
         print("\nShutting down...")
         hook.stop()
+        logger.stop()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
