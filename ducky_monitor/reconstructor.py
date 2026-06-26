@@ -12,13 +12,12 @@ class DuckyReconstructor:
         self.last_event_time = None
         self.string_buffer = ""
         
+        # Dynamic delay threshold tracking
+        self.intervals = []
+        self.max_intervals = 10
+
         # Track active modifiers
-        self.active_modifiers = {
-            'ctrl': False,
-            'shift': False,
-            'alt': False,
-            'gui': False
-        }
+        self.active_modifiers = set()
 
         # Map pynput keys to Duckyscript command names
         self.key_map = {
@@ -52,39 +51,58 @@ class DuckyReconstructor:
             self.callback(f"STRING {self.string_buffer}")
             self.string_buffer = ""
 
+    def _calculate_dynamic_threshold(self):
+        """Calculates a threshold based on recent typing speed variance."""
+        if len(self.intervals) < 3:
+            return self.delay_threshold_ms
+
+        avg = sum(self.intervals) / len(self.intervals)
+        # We use a multiplier of the average or a fixed buffer to account for jitter.
+        # BadUSB devices are typically very consistent.
+        return max(self.delay_threshold_ms, avg * 2.5)
+
     def process_press(self, key, event_time):
         """Processes a key press event."""
         if self.last_event_time:
             delta_ms = int((event_time - self.last_event_time) * 1000)
-            if delta_ms > self.delay_threshold_ms:
+
+            threshold = self._calculate_dynamic_threshold()
+
+            if delta_ms > threshold:
                 self._flush_string()
                 self.callback(f"DELAY {delta_ms}")
+                # Clear intervals after a long delay to reset the moving average
+                self.intervals = []
+            else:
+                self.intervals.append(delta_ms)
+                if len(self.intervals) > self.max_intervals:
+                    self.intervals.pop(0)
         
         self.last_event_time = event_time
 
         # Update modifier states
         is_modifier = False
         if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
-            self.active_modifiers['ctrl'] = True
+            self.active_modifiers.add('ctrl')
             is_modifier = True
         elif key in (keyboard.Key.shift, keyboard.Key.shift_l, keyboard.Key.shift_r):
-            self.active_modifiers['shift'] = True
+            self.active_modifiers.add('shift')
             is_modifier = True
         elif key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr):
-            self.active_modifiers['alt'] = True
+            self.active_modifiers.add('alt')
             is_modifier = True
         elif key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r):
-            self.active_modifiers['gui'] = True
+            self.active_modifiers.add('gui')
             is_modifier = True
 
         if is_modifier:
             return
 
         # Check for combinations (e.g., GUI r, CTRL ALT DEL)
-        ctrl = self.active_modifiers['ctrl']
-        alt = self.active_modifiers['alt']
-        gui = self.active_modifiers['gui']
-        shift = self.active_modifiers['shift']
+        ctrl = 'ctrl' in self.active_modifiers
+        alt = 'alt' in self.active_modifiers
+        gui = 'gui' in self.active_modifiers
+        shift = 'shift' in self.active_modifiers
 
         if ctrl or alt or gui or (shift and not hasattr(key, 'char')):
             self._flush_string()
@@ -117,13 +135,13 @@ class DuckyReconstructor:
     def process_release(self, key, event_time):
         """Processes a key release event to track modifier states."""
         if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
-            self.active_modifiers['ctrl'] = False
+            self.active_modifiers.discard('ctrl')
         elif key in (keyboard.Key.shift, keyboard.Key.shift_l, keyboard.Key.shift_r):
-            self.active_modifiers['shift'] = False
+            self.active_modifiers.discard('shift')
         elif key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr):
-            self.active_modifiers['alt'] = False
+            self.active_modifiers.discard('alt')
         elif key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r):
-            self.active_modifiers['gui'] = False
+            self.active_modifiers.discard('gui')
 
     def finalize(self):
         """Flushes any remaining buffered data."""

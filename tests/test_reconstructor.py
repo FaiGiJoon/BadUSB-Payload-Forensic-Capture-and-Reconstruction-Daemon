@@ -135,3 +135,25 @@ def test_special_keys():
     
     recon.finalize()
     assert "ENTER" in captured
+
+def test_complex_combination_ctrl_alt_delete():
+    captured = []
+    def callback(cmd): captured.append(cmd)
+
+    recon = DuckyReconstructor(callback)
+
+    # Simulate CTRL+ALT+DELETE
+    t = 1000.0
+    recon.process_press(mock_keyboard.Key.ctrl, t)
+    t += 0.01
+    recon.process_press(mock_keyboard.Key.alt, t)
+    t += 0.01
+    recon.process_press(mock_keyboard.Key.delete, t)
+    t += 0.01
+    recon.process_release(mock_keyboard.Key.delete, t)
+    recon.process_release(mock_keyboard.Key.alt, t + 0.01)
+    recon.process_release(mock_keyboard.Key.ctrl, t + 0.02)
+
+    recon.finalize()
+    # Note: The order in our implementation depends on the 'if gui: if ctrl: if alt: if shift:' sequence
+    assert "CTRL ALT DELETE" in captured
