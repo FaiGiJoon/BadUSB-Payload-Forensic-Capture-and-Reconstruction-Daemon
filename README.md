@@ -34,6 +34,22 @@ python main.py
 
 Captured data will be written to `ducky_capture.log` in the current directory.
 
+### Persistent Service Setup (UAC Persistence)
+
+Standard keyboard hooks are lost when Windows switches to the Secure Desktop (e.g., during a UAC prompt). To maintain persistence across these transitions, the daemon must run under the `NT AUTHORITY\SYSTEM` account.
+
+A PowerShell script is provided to configure the monitor as a Windows Scheduled Task with the highest privileges:
+
+```powershell
+.\setup_service.ps1
+```
+
+Once configured, the task will start automatically on boot. You can also start it manually:
+
+```powershell
+Start-ScheduledTask -TaskName "ForensicDuckyMonitor"
+```
+
 ### Log Output Example
 
 ```
@@ -41,6 +57,14 @@ Captured data will be written to `ducky_capture.log` in the current directory.
 [2023-10-27 10:00:00] [DUCKY] DELAY 500
 [2023-10-27 10:00:01] [DUCKY] STRING powershell.exe
 [2023-10-27 10:00:01] [DUCKY] ENTER
+```
+
+## Testing
+
+To run the test suite, use `pytest` from the root directory:
+
+```bash
+PYTHONPATH=. pytest
 ```
 
 ## Architecture
