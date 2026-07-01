@@ -9,12 +9,18 @@ class ForensicLogger:
         self.queue = Queue()
         self.running = True
         
-        # Ensure the file exists and write a header
-        if not os.path.exists(self.log_file):
-            with open(self.log_file, "w") as f:
-                f.write(f"# Ducky Capture started at {time.ctime()}\n")
-                f.flush()
-                os.fsync(f.fileno())
+        # Ensure the directory exists
+        log_dir = os.path.dirname(self.log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+
+        # Write a session header
+        with open(self.log_file, "a") as f:
+            f.write(f"\n{'='*50}\n")
+            f.write(f"# Ducky Capture Session Started: {time.ctime()}\n")
+            f.write(f"{'='*50}\n")
+            f.flush()
+            os.fsync(f.fileno())
         
         self.worker_thread = threading.Thread(target=self._worker, daemon=True)
         self.worker_thread.start()
