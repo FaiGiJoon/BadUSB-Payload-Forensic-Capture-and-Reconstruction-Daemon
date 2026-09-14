@@ -62,3 +62,18 @@ def test_logger_directory_creation(tmp_path):
 
     assert log_dir.exists()
     assert log_file.exists()
+
+def test_logger_flush_on_stop_when_queue_has_items(tmp_path):
+    log_file = tmp_path / "test_flush.log"
+    logger = ForensicLogger(str(log_file))
+
+    for i in range(20):
+        logger.log(f"Buffered item {i}")
+
+    logger.stop()
+
+    with open(log_file, "r") as f:
+        content = f.read()
+
+    for i in range(20):
+        assert f"Buffered item {i}" in content

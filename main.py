@@ -36,6 +36,8 @@ def main():
         logger.log(f"[FATAL] {e}")
         print(f"Fatal error: {e}")
         sys.exit(1)
+    finally:
+        logger.stop()
 
 if __name__ == "__main__":
     main()
