@@ -31,9 +31,12 @@ class KeyboardHook:
     def start(self):
         """Starts the keyboard listener in blocking mode."""
         self.logger.log("Keyboard Hook Started.")
-        with keyboard.Listener(on_press=self.on_press, on_release=self.on_release) as listener:
-            self.listener = listener
-            listener.join()
+        try:
+            with keyboard.Listener(on_press=self.on_press, on_release=self.on_release) as listener:
+                self.listener = listener
+                listener.join()
+        finally:
+            self.reconstructor.finalize()
 
     def stop(self):
         """Stops the keyboard listener."""

@@ -71,3 +71,11 @@ class ForensicLogger:
         self.running = False
         # The worker will finish the remaining items in the queue
         self.worker_thread.join(timeout=5)
+        # Drain any remaining items in case worker thread timed out or exited
+        while not self.queue.empty():
+            try:
+                message = self.queue.get_nowait()
+                self._write_to_disk(message)
+                self.queue.task_done()
+            except Exception:
+                break

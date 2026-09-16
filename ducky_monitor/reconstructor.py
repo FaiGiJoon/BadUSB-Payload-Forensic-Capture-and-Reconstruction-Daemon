@@ -16,8 +16,9 @@ class DuckyReconstructor:
         self.intervals = []
         self.max_intervals = 10
 
-        # Track active modifiers
+        # Track active modifiers and whether they were used in a key combination
         self.active_modifiers = set()
+        self.modifier_used = {}
 
         # Map pynput keys to Duckyscript command names
         self.key_map = {
@@ -64,7 +65,7 @@ class DuckyReconstructor:
     def process_press(self, key, event_time):
         """Processes a key press event."""
         if self.last_event_time:
-            delta_ms = int((event_time - self.last_event_time) * 1000)
+            delta_ms = max(0, int((event_time - self.last_event_time) * 1000))
 
             threshold = self._calculate_dynamic_threshold()
 
@@ -82,21 +83,25 @@ class DuckyReconstructor:
 
         # Update modifier states
         is_modifier = False
+        mod_name = None
         if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
-            self.active_modifiers.add('ctrl')
-            is_modifier = True
+            mod_name = 'ctrl'
         elif key in (keyboard.Key.shift, keyboard.Key.shift_l, keyboard.Key.shift_r):
-            self.active_modifiers.add('shift')
-            is_modifier = True
+            mod_name = 'shift'
         elif key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr):
-            self.active_modifiers.add('alt')
-            is_modifier = True
+            mod_name = 'alt'
         elif key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r):
-            self.active_modifiers.add('gui')
-            is_modifier = True
+            mod_name = 'gui'
 
-        if is_modifier:
+        if mod_name:
+            self.active_modifiers.add(mod_name)
+            self.modifier_used[mod_name] = False
+            is_modifier = True
             return
+
+        # Any non-modifier key press means active modifiers were used
+        for mod in list(self.active_modifiers):
+            self.modifier_used[mod] = True
 
         # Check for combinations (e.g., GUI r, CTRL ALT DEL)
         ctrl = 'ctrl' in self.active_modifiers
@@ -106,6 +111,7 @@ class DuckyReconstructor:
 
         if ctrl or alt or gui or (shift and not hasattr(key, 'char')):
             self._flush_string()
+
             parts = []
             if gui: parts.append("GUI")
             if ctrl: parts.append("CTRL")
@@ -133,15 +139,24 @@ class DuckyReconstructor:
                 self.callback(f"REM Unknown key: {key}")
 
     def process_release(self, key, event_time):
-        """Processes a key release event to track modifier states."""
+        """Processes a key release event to track modifier states and standalone modifiers."""
+        mod_name = None
         if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
-            self.active_modifiers.discard('ctrl')
+            mod_name = 'ctrl'
         elif key in (keyboard.Key.shift, keyboard.Key.shift_l, keyboard.Key.shift_r):
-            self.active_modifiers.discard('shift')
+            mod_name = 'shift'
         elif key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr):
-            self.active_modifiers.discard('alt')
+            mod_name = 'alt'
         elif key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r):
-            self.active_modifiers.discard('gui')
+            mod_name = 'gui'
+
+        if mod_name:
+            self.active_modifiers.discard(mod_name)
+            was_used = self.modifier_used.pop(mod_name, False)
+            if not was_used:
+                # Standalone modifier press (e.g. pressing and releasing Windows key)
+                self._flush_string()
+                self.callback(mod_name.upper())
 
     def finalize(self):
         """Flushes any remaining buffered data."""

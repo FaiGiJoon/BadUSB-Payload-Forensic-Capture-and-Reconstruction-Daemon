@@ -157,3 +157,62 @@ def test_complex_combination_ctrl_alt_delete():
     recon.finalize()
     # Note: The order in our implementation depends on the 'if gui: if ctrl: if alt: if shift:' sequence
     assert "CTRL ALT DELETE" in captured
+    # Ensure individual releases didn't output standalone ALT or CTRL
+    assert "ALT" not in captured
+    assert "CTRL" not in captured
+
+def test_standalone_modifiers():
+    captured = []
+    def callback(cmd): captured.append(cmd)
+
+    recon = DuckyReconstructor(callback)
+
+    t = 1000.0
+    # Press and release GUI (Windows key) alone
+    recon.process_press(mock_keyboard.Key.cmd, t)
+    recon.process_release(mock_keyboard.Key.cmd, t + 0.05)
+
+    # Press and release CTRL alone
+    t += 0.1
+    recon.process_press(mock_keyboard.Key.ctrl, t)
+    recon.process_release(mock_keyboard.Key.ctrl, t + 0.05)
+
+    recon.finalize()
+    assert "GUI" in captured
+    assert "CTRL" in captured
+
+def test_shift_with_character_typing():
+    captured = []
+    def callback(cmd): captured.append(cmd)
+
+    recon = DuckyReconstructor(callback)
+
+    t = 1000.0
+    # Hold shift, type 'H', release 'H', release shift
+    recon.process_press(mock_keyboard.Key.shift, t)
+    t += 0.01
+    recon.process_press(MockKeyCode.from_char('H'), t)
+    t += 0.01
+    recon.process_release(MockKeyCode.from_char('H'), t)
+    t += 0.01
+    recon.process_release(mock_keyboard.Key.shift, t)
+
+    recon.finalize()
+    assert "STRING H" in captured
+    assert "SHIFT" not in captured
+
+def test_negative_clock_delta_handling():
+    captured = []
+    def callback(cmd): captured.append(cmd)
+
+    recon = DuckyReconstructor(callback)
+
+    t = 1000.0
+    recon.process_press(MockKeyCode.from_char('a'), t)
+
+    # Clock jump backwards
+    t_backward = 999.0
+    recon.process_press(MockKeyCode.from_char('b'), t_backward)
+
+    recon.finalize()
+    assert "STRING ab" in captured
